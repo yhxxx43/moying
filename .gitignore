@@ -1,0 +1,16 @@
+plaintext
+  
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.vscode/
+.idea/
+*.jou
+*.log
+*.str
+*.tmp
+*.cache/
+*.runs/
+*.gen/
+*.srcs/
+.Xil/
