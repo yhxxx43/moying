@@ -1,4 +1,4 @@
- """
+"""
 皮影风格化 v0.1 —— 剪影 -> 皮影戏人偶
 ======================================
 对应简报三效果之三（皮影）的实现思路:
@@ -196,4 +196,5 @@ if __name__ == "__main__":
     cv2.imshow("shadow puppet demo (按任意键关闭)", out)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
 
