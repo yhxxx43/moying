@@ -98,11 +98,14 @@ class PlSilhouette(object):
         time.sleep(0.002)
         self._set_ctrl((self.threshold << 8) | 2)
         pos = 0
-        for buf, n in zip(self.in_bufs, self.sizes):
-            buf[:] = words[pos:pos + n]
-            buf.flush()
-            self.dma.sendchannel.transfer(buf)
+        for src, discard, n in zip(self.in_bufs, self.out_bufs, self.sizes):
+            src[:] = words[pos:pos + n]
+            src.flush()
+            self.dma.recvchannel.transfer(discard)      # 背景也走标准先收后发
+            self.dma.sendchannel.transfer(src)
             wait_dma_idle(self.dma, 0x04, "MM2S(background)")
+            wait_dma_idle(self.dma, 0x34, "S2MM(background)")
+            discard.invalidate()
             pos += n
         self._set_ctrl(self.threshold << 8)
 
@@ -150,7 +153,7 @@ def make_renderer(style):
 
 
 def main():
-    print("加载完整 overlay v0.4.1（电平背景控制版）...")
+    print("加载完整 overlay v0.4.2（标准双向 DMA 版）...")
     ol = Overlay("system.bit")
     print("IP:", sorted(ol.ip_dict.keys()))
 
@@ -217,4 +220,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
