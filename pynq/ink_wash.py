@@ -137,5 +137,3 @@ if __name__ == "__main__":
     cv2.imshow("ink wash demo (按任意键关闭)", out)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-
-
