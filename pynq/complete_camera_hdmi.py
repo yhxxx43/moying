@@ -21,7 +21,8 @@ OUT_W, OUT_H = 640, 480
 CAMERA_INDEX = 0
 THRESHOLD = 25
 STYLE = "ink"                 # ink / paper / puppet / silhouette
-DMA_WORDS_MAX = 4096          # 4096 x 4 = 16384 B，符合当前 DMA 上限
+DMA_WORDS_MAX = 4000          # 16000 B；14 位 DMA 长度字段的合法上限是 16383 B
+DMA_LENGTH_LIMIT = 16383
 DMA_TIMEOUT = 2.0
 
 
@@ -76,6 +77,9 @@ class PlSilhouette(object):
             n = min(left, DMA_WORDS_MAX)
             self.sizes.append(n)
             left -= n
+        if max(self.sizes) * 4 > DMA_LENGTH_LIMIT:
+            raise RuntimeError("DMA chunk too large: {} bytes".format(max(self.sizes) * 4))
+        print("DMA 安全分块(字节): {}".format([n * 4 for n in self.sizes]))
         self.in_bufs = [allocate(shape=(n,), dtype=np.uint32) for n in self.sizes]
         self.out_bufs = [allocate(shape=(n,), dtype=np.uint32) for n in self.sizes]
 
@@ -153,7 +157,7 @@ def make_renderer(style):
 
 
 def main():
-    print("加载完整 overlay v0.4.2（标准双向 DMA 版）...")
+    print("加载完整 overlay v0.4.3（16000 字节安全分块版）...")
     ol = Overlay("system.bit")
     print("IP:", sorted(ol.ip_dict.keys()))
 
