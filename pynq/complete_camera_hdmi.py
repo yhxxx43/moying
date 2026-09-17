@@ -156,15 +156,49 @@ def make_renderer(style):
     return lambda mask: cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
 
 
+def start_hdmi(vdma):
+    """紧邻首帧启动 VDMA，避免无有效视频期间通道因错误而停机。"""
+    channel = vdma.writechannel
+    if channel.running:
+        channel.stop()
+    channel.mode = VideoMode(OUT_W, OUT_H, 24, 60)
+    channel.start()
+    status = int(vdma.read(0x04))
+    if not channel.running:
+        raise RuntimeError("VDMA start failed, status=0x{:08X}".format(status))
+    print("HDMI VDMA 已启动，status=0x{:08X}".format(status))
+
+
+def write_hdmi(vdma, image):
+    """写一帧；若 MM2S 意外停机，软复位后自动恢复一次。"""
+    channel = vdma.writechannel
+    if not channel.running:
+        old_status = int(vdma.read(0x04))
+        print("VDMA 停机，自动复位重启；旧 status=0x{:08X}".format(old_status))
+        channel.reset()
+        channel.start()
+        if not channel.running:
+            raise RuntimeError("VDMA restart failed, status=0x{:08X}".format(
+                int(vdma.read(0x04))))
+
+    hdmi_frame = channel.newframe()
+    hdmi_frame[:] = image
+    try:
+        channel.writeframe(hdmi_frame)
+    except Exception:
+        try:
+            hdmi_frame.freebuffer()
+        except Exception:
+            pass
+        raise
+
+
 def main():
-    print("加载完整 overlay v0.4.3（16000 字节安全分块版）...")
+    print("加载完整 overlay v0.4.4（安全分块 + HDMI 延迟启动版）...")
     ol = Overlay("system.bit")
     print("IP:", sorted(ol.ip_dict.keys()))
 
-    configure_vtc(ol.vtc_0)
     vdma = ol.axi_vdma_0
-    vdma.writechannel.mode = VideoMode(OUT_W, OUT_H, 24, 60)
-    vdma.writechannel.start()
 
     cap = cv2.VideoCapture(CAMERA_INDEX)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, PROC_W)
@@ -189,6 +223,10 @@ def main():
         pl.load_background(bg)
         print("背景加载完成；现在进入画面。STYLE={}".format(STYLE))
 
+        # 单独 HDMI 测试的可靠顺序：配置时序后立即启动并送首帧。
+        configure_vtc(ol.vtc_0)
+        start_hdmi(vdma)
+
         count = 0
         report_t = time.time()
         while True:
@@ -201,9 +239,7 @@ def main():
             styled = render(mask)
             shown = cv2.resize(styled, (OUT_W, OUT_H), interpolation=cv2.INTER_LINEAR)
 
-            hdmi_frame = vdma.writechannel.newframe()
-            hdmi_frame[:] = shown
-            vdma.writechannel.writeframe(hdmi_frame)
+            write_hdmi(vdma, shown)
 
             count += 1
             now = time.time()
